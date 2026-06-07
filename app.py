@@ -92,82 +92,74 @@ if not has_cs and not has_tr:
     )
     st.stop()
 
-# ─── Build top-level tab list based on what was uploaded ───
-top_tab_names = []
+# ─── Format selector (radio) + single-level tabs ───
+view_options = []
 if has_cs:
-    top_tab_names.append("📊 Chat Session")
+    view_options.append("📊 Chat Session")
 if has_tr:
-    top_tab_names.append("📜 Transcript")
-top_tab_names.append("ℹ️ Format Info")
+    view_options.append("📜 Transcript")
+view_options.append("ℹ️ Format Info")
 
-top_tabs = st.tabs(top_tab_names)
-tab_idx = 0
+selected_view = st.radio(
+    "View", view_options, horizontal=True, label_visibility="collapsed",
+)
 
-# ─── Chat Session top-level tab ───
-if has_cs:
-    with top_tabs[tab_idx]:
-        fmt_label = "chatSession (CRDT)" if cs_data.file_format == "chatSession" else cs_data.file_format
-        st.markdown(
-            f'<p style="margin-bottom:8px;">'
-            f'<span style="display:inline-block;background:#7F77DD;color:#fff;font-size:11px;font-weight:600;'
-            f'padding:3px 12px;border-radius:10px;">{fmt_label}</span></p>',
-            unsafe_allow_html=True,
-        )
+if selected_view == "📊 Chat Session" and has_cs:
+    fmt_label = "chatSession (CRDT)" if cs_data.file_format == "chatSession" else cs_data.file_format
+    st.markdown(
+        f'<p style="margin-bottom:4px;">'
+        f'<span style="display:inline-block;background:#7F77DD;color:#fff;font-size:11px;font-weight:600;'
+        f'padding:3px 12px;border-radius:10px;">{fmt_label}</span></p>',
+        unsafe_allow_html=True,
+    )
 
-        sub_overview, sub_timeline, sub_rounds, sub_tokens, sub_cost = st.tabs([
-            "Overview", "Timeline", "Rounds", "Tokens", "Cost & Credits"
-        ])
+    tab_overview, tab_timeline, tab_rounds, tab_tokens, tab_cost = st.tabs([
+        "Overview", "Timeline", "Rounds", "Tokens", "Cost & Credits"
+    ])
 
-        with sub_overview:
-            render_session_header(cs_data)
-            render_key_rules(cs_data)
+    with tab_overview:
+        render_session_header(cs_data)
+        render_key_rules(cs_data)
 
-        with sub_timeline:
-            render_timeline(cs_data)
+    with tab_timeline:
+        render_timeline(cs_data)
 
-        with sub_rounds:
-            render_round_cards(cs_data)
+    with tab_rounds:
+        render_round_cards(cs_data)
 
-        with sub_tokens:
-            render_token_chart(cs_data)
-            render_output_tokens_explainer(cs_data)
+    with tab_tokens:
+        render_token_chart(cs_data)
+        render_output_tokens_explainer(cs_data)
 
-        with sub_cost:
-            render_cost_summary(cs_data)
+    with tab_cost:
+        render_cost_summary(cs_data)
 
-    tab_idx += 1
+elif selected_view == "📜 Transcript" and has_tr:
+    st.markdown(
+        '<p style="margin-bottom:4px;">'
+        '<span style="display:inline-block;background:#378ADD;color:#fff;font-size:11px;font-weight:600;'
+        'padding:3px 12px;border-radius:10px;">transcript (event stream)</span></p>',
+        unsafe_allow_html=True,
+    )
 
-# ─── Transcript top-level tab ───
-if has_tr:
-    with top_tabs[tab_idx]:
-        st.markdown(
-            '<p style="margin-bottom:8px;">'
-            '<span style="display:inline-block;background:#378ADD;color:#fff;font-size:11px;font-weight:600;'
-            'padding:3px 12px;border-radius:10px;">transcript (event stream)</span></p>',
-            unsafe_allow_html=True,
-        )
+    tab_overview, tab_timeline, tab_turns, tab_tools, tab_messages = st.tabs([
+        "Overview", "Timeline", "Turns", "Tools", "Messages"
+    ])
 
-        sub_overview, sub_timeline, sub_turns, sub_tools, sub_messages = st.tabs([
-            "Overview", "Timeline", "Turns", "Tools", "Messages"
-        ])
+    with tab_overview:
+        render_transcript_header(tr_data)
 
-        with sub_overview:
-            render_transcript_header(tr_data)
+    with tab_timeline:
+        render_transcript_timeline(tr_data)
 
-        with sub_timeline:
-            render_transcript_timeline(tr_data)
+    with tab_turns:
+        render_transcript_turns(tr_data)
 
-        with sub_turns:
-            render_transcript_turns(tr_data)
+    with tab_tools:
+        render_transcript_tool_chart(tr_data)
 
-        with sub_tools:
-            render_transcript_tool_chart(tr_data)
+    with tab_messages:
+        render_transcript_messages(tr_data)
 
-        with sub_messages:
-            render_transcript_messages(tr_data)
-
-    tab_idx += 1
-
-# ─── Format Info tab (always last) ───
-with top_tabs[tab_idx]:
+elif selected_view == "ℹ️ Format Info":
     render_format_info()

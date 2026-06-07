@@ -253,7 +253,7 @@ def render_token_chart(session: SessionData):
         yaxis=dict(gridcolor="#333", gridwidth=0.5, tickformat=",.0f"),
         xaxis=dict(showgrid=False),
     )
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 
 def render_output_tokens_explainer(session: SessionData):
@@ -614,7 +614,7 @@ def render_transcript_tool_chart(session: SessionData):
         yaxis=dict(autorange="reversed"),
         xaxis=dict(gridcolor="#333", gridwidth=0.5, title="Executions"),
     )
-    st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+    st.plotly_chart(fig, width="stretch", config={"displayModeBar": False})
 
 
 def render_transcript_messages(session: SessionData):
@@ -644,46 +644,206 @@ def render_transcript_messages(session: SessionData):
 def render_format_info():
     st.markdown('<p class="section-heading">CHATSESSIONS VS TRANSCRIPTS — FORMAT COMPARISON</p>', unsafe_allow_html=True)
 
+    # ── Side-by-side format cards ──
     cols = st.columns(2)
     with cols[0]:
         st.markdown("""
         <div class="info-box">
-            <p class="info-box-title">chatSessions (CRDT Patch Log)</p>
+            <p class="info-box-title" style="color:#7F77DD;">📊 chatSessions (CRDT Patch Log)</p>
             <p class="info-box-body">
-                <strong>Owner:</strong> VS Code core (workbench)<br>
-                <strong>Purpose:</strong> UI state persistence & session restore<br>
-                <strong>Format:</strong> kind:0 snapshots + kind:1/2 diff patches<br>
-                <strong>Location:</strong> <code>chatSessions/{id}.jsonl</code><br><br>
-                <strong>Unique data:</strong> Token counts (prompt/completion), timing data, content references,
-                tool confirmation states, full response rendering, editor state, model configuration,
-                cost/multiplier metadata, streaming progress
+                <strong>Owner:</strong> VS Code core workbench<br>
+                <strong>Purpose:</strong> Session persistence & restore after VS Code reload<br>
+                <strong>Written by:</strong> <code>ChatService</code> in the VS Code workbench layer<br>
+                <strong>Format:</strong> CRDT-style diffs — kind:0 (full snapshot), kind:1 (field patch), kind:2 (array replace)<br>
+                <strong>Location:</strong><br>
+                <code style="font-size:11px;">workspaceStorage/&lt;id&gt;/chatSessions/&lt;session-id&gt;.jsonl</code>
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("""
+        <div class="card" style="padding:12px;margin-top:6px;">
+            <p style="font-size:12px;font-weight:600;color:#7F77DD;margin:0 0 6px 0;">Data unique to chatSessions</p>
+            <p style="font-size:12px;color:#aaa;line-height:1.7;margin:0;">
+                ✅ <strong>Token counts</strong> — promptTokens, completionTokens (streaming progress), outputTokens<br>
+                ✅ <strong>Timing data</strong> — totalElapsed, firstProgress, elapsedMs per round<br>
+                ✅ <strong>Credits/cost</strong> — result.details with credit strings, model multiplier<br>
+                ✅ <strong>Model metadata</strong> — inputCost, outputCost, cacheCost, priceCategory, capabilities<br>
+                ✅ <strong>Streaming progress</strong> — multiple completionToken updates per round (progress bars)<br>
+                ✅ <strong>Content references</strong> — file paths attached to each request as context<br>
+                ✅ <strong>Tool confirmations</strong> — isConfirmed state for tool invocations<br>
+                ✅ <strong>Editor state</strong> — hasPendingEdits, textEditGroup changes<br>
+                ✅ <strong>Response rendering</strong> — full response items with kind (thinking, toolInvocation, codeblockUri, etc.)<br>
+                ✅ <strong>Model state</strong> — completion status (modelState.value), followup suggestions
             </p>
         </div>
         """, unsafe_allow_html=True)
     with cols[1]:
         st.markdown("""
         <div class="info-box">
-            <p class="info-box-title">Transcripts (Event Stream)</p>
+            <p class="info-box-title" style="color:#378ADD;">📜 Transcripts (Event Stream)</p>
             <p class="info-box-body">
-                <strong>Owner:</strong> Copilot extension (SessionTranscriptService)<br>
-                <strong>Purpose:</strong> Conversation event log for hooks & replay<br>
-                <strong>Format:</strong> Linked list of typed events (parentId chain)<br>
-                <strong>Location:</strong> <code>GitHub.copilot-chat/transcripts/{id}.jsonl</code><br><br>
-                <strong>Unique data:</strong> Clean event ordering, explicit tool arguments at execution time,
-                separate start/complete events per tool, reasoning text as first-class field,
-                producer identity, tool success/failure tracking
+                <strong>Owner:</strong> GitHub Copilot Chat extension<br>
+                <strong>Purpose:</strong> Conversation event log for hooks, replay & debugging<br>
+                <strong>Written by:</strong> <code>SessionTranscriptService</code> in the Copilot extension<br>
+                <strong>Format:</strong> Linked list of typed events with parentId chain<br>
+                <strong>Location:</strong><br>
+                <code style="font-size:11px;">workspaceStorage/&lt;id&gt;/GitHub.copilot-chat/transcripts/&lt;session-id&gt;.jsonl</code>
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown("""
+        <div class="card" style="padding:12px;margin-top:6px;">
+            <p style="font-size:12px;font-weight:600;color:#378ADD;margin:0 0 6px 0;">Data unique to transcripts</p>
+            <p style="font-size:12px;color:#aaa;line-height:1.7;margin:0;">
+                ✅ <strong>Tool arguments</strong> — explicit JSON arguments at execution time (not serialized in response)<br>
+                ✅ <strong>Tool success/failure</strong> — per-tool execution tracking with success boolean<br>
+                ✅ <strong>Separate start/complete</strong> — tool.execution_start and tool.execution_complete events<br>
+                ✅ <strong>Reasoning text</strong> — first-class <code>reasoning</code> field in assistant messages<br>
+                ✅ <strong>User message content</strong> — full user message text with timestamps<br>
+                ✅ <strong>Attachments</strong> — user message attachment metadata (file refs, selections)<br>
+                ✅ <strong>Turn boundaries</strong> — explicit assistant.turn_start/end events<br>
+                ✅ <strong>Producer identity</strong> — which agent produced each event<br>
+                ✅ <strong>Event chain</strong> — parentId linking for causal ordering<br>
+                ✅ <strong>Clean chronological log</strong> — one event per line, easy to grep/stream
             </p>
         </div>
         """, unsafe_allow_html=True)
 
+    st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
+
+    # ── Comparison table ──
+    st.markdown('<p class="section-heading" style="font-size:14px;">FEATURE COMPARISON</p>', unsafe_allow_html=True)
+
+    comparison_rows = [
+        ("Owner", "VS Code core (workbench)", "Copilot extension"),
+        ("Purpose", "Session restore after reload", "Event log for hooks & replay"),
+        ("Format", "CRDT patches (kind:0/1/2)", "Typed event stream (type field)"),
+        ("Token data", "✅ Full streaming counts", "❌ Not included"),
+        ("Credits/cost", "✅ result.details + multiplier", "❌ Not included"),
+        ("Tool arguments", "Serialized in response items", "✅ Explicit at execution time"),
+        ("Tool success/fail", "❌ Not tracked", "✅ Per-tool tracking"),
+        ("Reasoning text", "In response items (thinking kind)", "✅ First-class field"),
+        ("User messages", "Prompt text in request", "✅ Full text + attachments + timestamp"),
+        ("Streaming progress", "✅ Multiple token updates", "❌ Not included"),
+        ("Editor state", "✅ hasPendingEdits, textEdits", "❌ Not tracked"),
+        ("Event ordering", "Insertion order (may interleave)", "✅ Linked list with parentId"),
+    ]
+    for aspect, cs_val, tr_val in comparison_rows:
+        st.markdown(
+            f'<div style="display:flex;border-bottom:1px solid #333;padding:6px 0;">'
+            f'<span style="flex:1;font-size:12px;font-weight:600;color:#e8e6de;">{aspect}</span>'
+            f'<span style="flex:1.5;font-size:12px;color:#aaa;">{cs_val}</span>'
+            f'<span style="flex:1.5;font-size:12px;color:#aaa;">{tr_val}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
+
+    # ── Event types ──
+    type_cols = st.columns(2)
+    with type_cols[0]:
+        st.markdown("""
+        <div class="card" style="padding:14px;">
+            <p style="font-size:12px;font-weight:600;color:#7F77DD;margin:0 0 8px 0;">chatSession JSONL Kinds</p>
+            <p style="font-size:12px;color:#aaa;line-height:1.8;margin:0;">
+                <code>kind:0</code> — Full session snapshot (model metadata, mode, account, capabilities, pricing)<br>
+                <code>kind:1</code> — Field patch (completionTokens, result, elapsedMs, modelState, contentReferences, inputText)<br>
+                <code>kind:2</code> — Array replace (requests with response items: thinking, toolInvocation, textEditGroup, codeblockUri, progressTask, questionCarousel, undoStop)
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    with type_cols[1]:
+        st.markdown("""
+        <div class="card" style="padding:14px;">
+            <p style="font-size:12px;font-weight:600;color:#378ADD;margin:0 0 8px 0;">Transcript Event Types</p>
+            <p style="font-size:12px;color:#aaa;line-height:1.8;margin:0;">
+                <code>session.start</code> — Session metadata (producer, VS Code version, extension version)<br>
+                <code>user.message</code> — User prompt with content, attachments, timestamp<br>
+                <code>assistant.turn_start</code> / <code>assistant.turn_end</code> — Turn boundaries<br>
+                <code>assistant.message</code> — Model response with reasoning text and tool requests<br>
+                <code>tool.execution_start</code> — Tool call begins (tool name, arguments, call ID)<br>
+                <code>tool.execution_complete</code> — Tool call ends (success/failure)
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
+
+    # ── Key insight + correlation ──
     st.markdown("""
-    <div class="card" style="margin-top: 12px; padding: 16px;">
-        <p style="font-size: 13px; color: #aaa; line-height: 1.6; margin: 0;">
-            <strong style="color: #e8e6de;">Key insight:</strong> These are complementary, not replacements.
-            chatSessions is VS Code's authoritative state store (for session restore after reload).
-            Transcripts are the Copilot extension's event log (exposed to hooks and external tools).
-            Both use the same session ID for correlation. A third format — <strong>debug-logs</strong>
-            (OpenTelemetry spans) — exists for developer diagnostics with per-LLM-call token counts and system prompts.
+    <div class="card" style="padding:16px;">
+        <p style="font-size:13px;color:#aaa;line-height:1.6;margin:0;">
+            <strong style="color:#e8e6de;">Key insight:</strong> These formats are <strong>complementary</strong>, not replacements.
+            chatSessions is VS Code's authoritative state store (for restoring chat UI after window reload).
+            Transcripts are the Copilot extension's structured event log (exposed to hooks and external consumers).
+            Both files share the <strong>same session ID</strong> for correlation — upload both for the most complete picture.
+        </p>
+        <p style="font-size:13px;color:#aaa;line-height:1.6;margin:12px 0 0 0;">
+            A third format — <strong style="color:#e8e6de;">debug-logs</strong> (OpenTelemetry spans) — exists at
+            <code>GitHub.copilot-chat/debug-logs/*.jsonl</code> for developer diagnostics.
+            It contains per-LLM-call token counts, system prompts, and detailed timing breakdowns.
+            This format is not yet supported by this analyser.
         </p>
     </div>
     """, unsafe_allow_html=True)
+
+    st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
+
+    # ── File locations ──
+    st.markdown('<p class="section-heading" style="font-size:14px;">FILE LOCATIONS</p>', unsafe_allow_html=True)
+
+    loc_cols = st.columns(3)
+    with loc_cols[0]:
+        st.markdown("""
+        <div class="card" style="padding:12px;">
+            <p style="font-size:12px;font-weight:600;color:#e8e6de;margin:0 0 6px 0;">Windows</p>
+            <p style="font-size:11px;color:#888;line-height:1.6;margin:0;word-break:break-all;">
+                <code>%APPDATA%\\Code\\User\\workspaceStorage\\&lt;id&gt;\\chatSessions\\*.jsonl</code><br>
+                <code>%APPDATA%\\Code\\User\\workspaceStorage\\&lt;id&gt;\\GitHub.copilot-chat\\transcripts\\*.jsonl</code>
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    with loc_cols[1]:
+        st.markdown("""
+        <div class="card" style="padding:12px;">
+            <p style="font-size:12px;font-weight:600;color:#e8e6de;margin:0 0 6px 0;">macOS</p>
+            <p style="font-size:11px;color:#888;line-height:1.6;margin:0;word-break:break-all;">
+                <code>~/Library/Application Support/Code/User/workspaceStorage/&lt;id&gt;/chatSessions/*.jsonl</code><br>
+                <code>~/Library/Application Support/Code/User/workspaceStorage/&lt;id&gt;/GitHub.copilot-chat/transcripts/*.jsonl</code>
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+    with loc_cols[2]:
+        st.markdown("""
+        <div class="card" style="padding:12px;">
+            <p style="font-size:12px;font-weight:600;color:#e8e6de;margin:0 0 6px 0;">Linux</p>
+            <p style="font-size:11px;color:#888;line-height:1.6;margin:0;word-break:break-all;">
+                <code>~/.config/Code/User/workspaceStorage/&lt;id&gt;/chatSessions/*.jsonl</code><br>
+                <code>~/.config/Code/User/workspaceStorage/&lt;id&gt;/GitHub.copilot-chat/transcripts/*.jsonl</code>
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
+
+    # ── Related links ──
+    st.markdown('<p class="section-heading" style="font-size:14px;">RELATED LINKS</p>', unsafe_allow_html=True)
+
+    links = [
+        ("GitHub Copilot documentation", "https://docs.github.com/en/copilot"),
+        ("VS Code Chat extensions API", "https://code.visualstudio.com/api/extension-guides/chat"),
+        ("GitHub Copilot Chat extension", "https://marketplace.visualstudio.com/items?itemName=GitHub.copilot-chat"),
+        ("VS Code workspaceStorage documentation", "https://code.visualstudio.com/api/extension-capabilities/common-capabilities#data-storage"),
+        ("Copilot premium request usage", "https://docs.github.com/en/copilot/managing-copilot/monitoring-usage-and-entitlements/about-premium-requests"),
+        ("Understanding Copilot model multipliers", "https://docs.github.com/en/copilot/managing-copilot/monitoring-usage-and-entitlements/about-premium-requests#about-premium-requests-for-copilot-chat-in-the-ide"),
+    ]
+    for title, url in links:
+        st.markdown(
+            f'<div style="padding:4px 0;">'
+            f'<a href="{url}" target="_blank" style="color:#378ADD;font-size:13px;text-decoration:none;">'
+            f'🔗 {title}</a>'
+            f'<span style="font-size:11px;color:#666;margin-left:8px;">{url.split("//")[1].split("/")[0]}</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
