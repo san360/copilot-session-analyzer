@@ -1,28 +1,36 @@
 # Copilot Session Analyser
 
-A Streamlit web application that parses GitHub Copilot chat session JSONL files and renders a rich, tabbed visual dashboard for understanding token usage, tool calls, timelines, and session structure.
+A Streamlit web application that parses GitHub Copilot chat session JSONL files and renders a visual dashboard for understanding token usage, tool calls, timelines, credits, and session structure.
 
-Supports **two JSONL formats** — chatSessions (CRDT patch log) and transcripts (event stream) — with auto-detection and format-specific tabs.
+Supports **two JSONL formats** — chatSessions (CRDT patch log) and transcripts (event stream) — with auto-detection. Upload one or both files for the same session to get the complete picture.
 
 ## What It Does
 
-Upload a Copilot session `.jsonl` file and get an instant visual breakdown:
+Upload one or both Copilot session `.jsonl` files and get an instant visual breakdown. A **radio selector** switches between Chat Session, Transcript, and Format Info views.
 
-### chatSession Format (CRDT Patch Log)
+### Chat Session View (tabbed)
+The chatSession CRDT patch log is presented in tabs:
 - **Overview** — Model name, mode, account, token limits, capabilities, pricing, session span
 - **Timeline** — Chronological view of all JSONL events: session init, user prompts, request submissions, completion token streaming, agent tool calls, result records
 - **Rounds** — Side-by-side cards per request showing prompt/completion/output tokens, tool call rounds, elapsed time, credits, tool IDs, response kind breakdown, and streaming progress bars
 - **Tokens** — Grouped bar chart comparing prompt, completion, and outputTokens across rounds + outputTokens explainer
+- **Cost & Credits** — Total tokens, model multiplier, total credits from `result.details`, per-round breakdown with credit values, and pricing explainer
 
-### Transcript Format (Event Stream)
-- **Overview** — Session metadata, user message count, assistant turns, tool execution stats (success/failure)
+### Transcript View (single scrollable page)
+The transcript event stream is rendered as a continuous dashboard:
+- **Header** — Session metadata, user message count, assistant turns, tool execution stats (success/failure)
 - **Timeline** — Chronological event stream: session.start, user.message, assistant turns, tool execution start/complete
-- **Turns** — Assistant turn cards showing message count, content length, tool executions, reasoning indicators
 - **Tools** — Horizontal bar chart of tool usage by frequency
+- **Turns** — Assistant turn cards showing message count, content length, tool executions, reasoning indicators
 - **Messages** — Full user message content with timestamps and attachment counts
 
-### Format Comparison
-Both formats include a **Format Info** tab explaining the differences between chatSessions and transcripts.
+### Format Info View
+A detailed comparison page with:
+- Side-by-side format cards with unique data per format
+- Feature comparison table (12 aspects)
+- Event type reference for both formats
+- File locations for Windows, macOS, and Linux
+- Related documentation links (GitHub Copilot docs, VS Code API, premium request usage)
 
 ## JSONL File Formats
 
@@ -71,7 +79,7 @@ Both formats share the same **session ID** for correlation.
 ## Project Structure
 
 ```
-app.py              # Main Streamlit entry — tabbed layout with format auto-detection
+app.py              # Main Streamlit entry — radio selector + tabbed/scrollable views
 parser.py           # JSONL parsing — chatSession & transcript parsers
 components.py       # Render functions for all dashboard sections
 styles.py           # CSS constants for the dark theme
@@ -132,9 +140,10 @@ Sort by date to find the most recent sessions.
 ## Usage
 
 1. Open `http://localhost:8501` in your browser
-2. Upload a `.jsonl` file — the format is auto-detected
-3. Navigate between tabs for different views of the session data
-4. Upload a different file to analyse another session (state is cleared automatically)
+2. Upload a chatSession file, a transcript file, or both — the format is auto-detected
+3. Use the radio selector to switch between Chat Session, Transcript, and Format Info views
+4. Within Chat Session, navigate tabs (Overview, Timeline, Rounds, Tokens, Cost & Credits)
+5. The Transcript view is a single scrollable dashboard — no sub-tabs needed
 
 ## Edge Cases Handled
 
@@ -148,7 +157,7 @@ Sort by date to find the most recent sessions.
 
 ## Tech Stack
 
-- **Streamlit** — UI framework with tabbed layout
+- **Streamlit** — UI framework with radio selector and tabbed/scrollable layouts
 - **Plotly** — Charts and visualisations
 - **pandas** — Data manipulation
 - All processing is local; no external API calls
