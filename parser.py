@@ -498,7 +498,7 @@ def _parse_chat_session(lines: list[str]) -> SessionData:
                     rd.result_line = line_num
                     if isinstance(v, dict):
                         details = v.get("details", "")
-                        if isinstance(details, str) and "credit" in details.lower():
+                        if isinstance(details, str) and details:
                             rd.credits = details
                         timings = v.get("timings", {})
                         rd.first_progress_ms = timings.get("firstProgress", 0)
@@ -566,6 +566,35 @@ def _parse_chat_session(lines: list[str]) -> SessionData:
                         for vr in var_data.get("variables", []):
                             if isinstance(vr, dict):
                                 rd.variable_files.append({"kind": vr.get("kind", ""), "name": vr.get("name", ""), "value": vr.get("value", "")})
+
+                    # Extract result from the request item (credits, tokens, timings)
+                    result = item.get("result")
+                    if isinstance(result, dict):
+                        rd.has_result = True
+                        rd.result_line = line_num
+                        details = result.get("details", "")
+                        if isinstance(details, str) and details:
+                            rd.credits = details
+                        timings = result.get("timings", {})
+                        if isinstance(timings, dict):
+                            rd.first_progress_ms = timings.get("firstProgress", 0) or 0
+                            rd.total_elapsed_ms = timings.get("totalElapsed", 0) or 0
+                        metadata = result.get("metadata", {})
+                        if isinstance(metadata, dict):
+                            rd.prompt_tokens = metadata.get("promptTokens", 0) or 0
+                            rd.output_tokens_result = metadata.get("outputTokens", 0) or 0
+                            tool_rounds = metadata.get("toolCallRounds", [])
+                            if isinstance(tool_rounds, list):
+                                rd.tool_call_rounds_count = len(tool_rounds)
+                                rd.tool_call_rounds_raw = tool_rounds
+                                for tr in tool_rounds:
+                                    if isinstance(tr, dict):
+                                        calls = tr.get("toolCalls", [])
+                                        if isinstance(calls, list):
+                                            for tc in calls:
+                                                name = tc.get("name", "")
+                                                if name and name not in rd.tool_names:
+                                                    rd.tool_names.append(name)
 
                     if input_text_drafts and input_text_first_line:
                         final_text = input_text_drafts[-1][1]

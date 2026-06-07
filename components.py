@@ -326,6 +326,24 @@ def render_cost_summary(session: SessionData):
     # Credits from result.details (per-round)
     has_per_round_credits = any(rd.credits for rd in session.requests)
 
+    # Parse actual credits from result.details per round
+    import re
+    actual_credits = []
+    total_actual = 0.0
+    has_actual_credits = False
+    for rd in session.requests:
+        if rd.credits:
+            m = re.search(r'([\d.]+)\s*credits', rd.credits)
+            if m:
+                val = float(m.group(1))
+                actual_credits.append(val)
+                total_actual += val
+                has_actual_credits = True
+            else:
+                actual_credits.append(None)  # multiplier-only like "3x"
+        else:
+            actual_credits.append(None)
+
     # Top summary cards
     cols = st.columns(4)
     with cols[0]:
@@ -343,10 +361,16 @@ def render_cost_summary(session: SessionData):
             unsafe_allow_html=True,
         )
     with cols[2]:
+        if has_actual_credits:
+            credit_display = f"{total_actual:.1f}"
+            credit_note = f"from result.details ({num_rounds} rounds)"
+        else:
+            credit_display = f"{total_credits:.1f}"
+            credit_note = f"{num_rounds} rounds × {mult}x multiplier (estimated)"
         st.markdown(
-            f'<div class="info-box"><p class="info-box-title">Estimated Credits</p>'
-            f'<p style="font-size:28px;font-weight:700;color:#7F77DD;margin:8px 0 0 0;">{total_credits:.1f}</p>'
-            f'<p style="font-size:11px;color:#888;margin:4px 0 0 0;">{num_rounds} rounds × {mult}x multiplier</p></div>',
+            f'<div class="info-box"><p class="info-box-title">Total Credits</p>'
+            f'<p style="font-size:28px;font-weight:700;color:#7F77DD;margin:8px 0 0 0;">{credit_display}</p>'
+            f'<p style="font-size:11px;color:#888;margin:4px 0 0 0;">{credit_note}</p></div>',
             unsafe_allow_html=True,
         )
     with cols[3]:
@@ -366,8 +390,16 @@ def render_cost_summary(session: SessionData):
     for i, rd in enumerate(session.requests):
         color = _round_color(i)
         prompt_trunc = rd.prompt_text[:50] + "..." if rd.prompt_text and len(rd.prompt_text) > 50 else (rd.prompt_text or "(no prompt)")
-        round_credits = mult
         elapsed_str = format_elapsed(rd.total_elapsed_ms)
+
+        # Credits display — show actual from result.details
+        credit_val = actual_credits[i] if i < len(actual_credits) else None
+        if credit_val is not None:
+            credit_html = f'<span style="font-size:13px;font-weight:600;color:#EF9F27;min-width:110px;text-align:right;">{credit_val:.1f} credits</span>'
+        elif rd.credits:
+            credit_html = f'<span style="font-size:12px;color:#888;min-width:110px;text-align:right;">{rd.credits.split("•")[-1].strip() if "•" in rd.credits else rd.credits}</span>'
+        else:
+            credit_html = f'<span style="font-size:12px;color:#555;min-width:110px;text-align:right;">in progress</span>'
 
         st.markdown(
             f'<div class="card" style="margin-bottom:6px;padding:12px 16px;display:flex;align-items:center;gap:16px;">'
@@ -376,7 +408,7 @@ def render_cost_summary(session: SessionData):
             f'<span style="font-size:12px;color:#888;min-width:100px;text-align:right;">{rd.prompt_tokens:,} in</span>'
             f'<span style="font-size:12px;color:#888;min-width:100px;text-align:right;">{rd.completion_tokens:,} out</span>'
             f'<span style="font-size:12px;color:#888;min-width:80px;text-align:right;">{elapsed_str}</span>'
-            f'<span style="font-size:13px;font-weight:600;color:#EF9F27;min-width:60px;text-align:right;">{round_credits:.1f}×</span>'
+            f'{credit_html}'
             f'</div>',
             unsafe_allow_html=True,
         )
