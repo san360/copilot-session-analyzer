@@ -142,24 +142,11 @@ elif selected_view == "📜 Transcript" and has_tr:
         unsafe_allow_html=True,
     )
 
-    tab_overview, tab_timeline, tab_turns, tab_tools, tab_messages = st.tabs([
-        "Overview", "Timeline", "Turns", "Tools", "Messages"
-    ])
-
-    with tab_overview:
-        render_transcript_header(tr_data)
-
-    with tab_timeline:
-        render_transcript_timeline(tr_data)
-
-    with tab_turns:
-        render_transcript_turns(tr_data)
-
-    with tab_tools:
-        render_transcript_tool_chart(tr_data)
-
-    with tab_messages:
-        render_transcript_messages(tr_data)
+    render_transcript_header(tr_data)
+    render_transcript_timeline(tr_data)
+    render_transcript_tool_chart(tr_data)
+    render_transcript_turns(tr_data)
+    render_transcript_messages(tr_data)
 
 elif selected_view == "ℹ️ Format Info":
     render_format_info()
