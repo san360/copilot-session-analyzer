@@ -302,6 +302,140 @@ def render_output_tokens_explainer(session: SessionData):
         </div>""", unsafe_allow_html=True)
 
 
+def render_cost_summary(session: SessionData):
+    """Render cost & credits summary — token-based cost estimation."""
+    st.markdown('<p class="section-heading">COST & CREDITS SUMMARY</p>', unsafe_allow_html=True)
+
+    num_rounds = len(session.requests)
+    total_prompt = sum(rd.prompt_tokens for rd in session.requests)
+    total_completion = sum(rd.completion_tokens for rd in session.requests)
+    grand_total = total_prompt + total_completion
+
+    # Parse multiplier
+    try:
+        mult = float(session.multiplier.replace("x", "").strip()) if session.multiplier else 1.0
+    except (ValueError, AttributeError):
+        mult = 1.0
+
+    # Premium request credits (each agent round = 1 premium request × multiplier)
+    total_credits = num_rounds * mult
+
+    # Show model metadata cost fields if available
+    has_cost_meta = session.input_cost or session.output_cost or session.cache_cost
+
+    # Credits from result.details (per-round)
+    has_per_round_credits = any(rd.credits for rd in session.requests)
+
+    # Top summary cards
+    cols = st.columns(4)
+    with cols[0]:
+        st.markdown(
+            f'<div class="info-box"><p class="info-box-title">Total Tokens</p>'
+            f'<p style="font-size:28px;font-weight:700;color:#e8e6de;margin:8px 0 0 0;">{grand_total:,}</p>'
+            f'<p style="font-size:11px;color:#888;margin:4px 0 0 0;">{total_prompt:,} input + {total_completion:,} output</p></div>',
+            unsafe_allow_html=True,
+        )
+    with cols[1]:
+        st.markdown(
+            f'<div class="info-box"><p class="info-box-title">Multiplier</p>'
+            f'<p style="font-size:28px;font-weight:700;color:#EF9F27;margin:8px 0 0 0;">{session.multiplier or "1x"}</p>'
+            f'<p style="font-size:11px;color:#888;margin:4px 0 0 0;">{session.model_name}</p></div>',
+            unsafe_allow_html=True,
+        )
+    with cols[2]:
+        st.markdown(
+            f'<div class="info-box"><p class="info-box-title">Estimated Credits</p>'
+            f'<p style="font-size:28px;font-weight:700;color:#7F77DD;margin:8px 0 0 0;">{total_credits:.1f}</p>'
+            f'<p style="font-size:11px;color:#888;margin:4px 0 0 0;">{num_rounds} rounds × {mult}x multiplier</p></div>',
+            unsafe_allow_html=True,
+        )
+    with cols[3]:
+        pricing_text = session.pricing_display or session.price_category or "standard"
+        st.markdown(
+            f'<div class="info-box"><p class="info-box-title">Pricing Tier</p>'
+            f'<p style="font-size:18px;font-weight:600;color:#e8e6de;margin:12px 0 0 0;">{pricing_text}</p>'
+            f'<p style="font-size:11px;color:#888;margin:4px 0 0 0;">account: {session.account_label}</p></div>',
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
+
+    # Per-round breakdown table
+    st.markdown('<p class="section-heading" style="font-size:14px;">PER-ROUND BREAKDOWN</p>', unsafe_allow_html=True)
+
+    for i, rd in enumerate(session.requests):
+        color = _round_color(i)
+        prompt_trunc = rd.prompt_text[:50] + "..." if rd.prompt_text and len(rd.prompt_text) > 50 else (rd.prompt_text or "(no prompt)")
+        round_credits = mult
+        elapsed_str = format_elapsed(rd.total_elapsed_ms)
+
+        st.markdown(
+            f'<div class="card" style="margin-bottom:6px;padding:12px 16px;display:flex;align-items:center;gap:16px;">'
+            f'<span class="round-badge" style="background-color:{color};min-width:70px;text-align:center;">R{i+1}</span>'
+            f'<span style="flex:1;font-size:13px;color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{prompt_trunc}</span>'
+            f'<span style="font-size:12px;color:#888;min-width:100px;text-align:right;">{rd.prompt_tokens:,} in</span>'
+            f'<span style="font-size:12px;color:#888;min-width:100px;text-align:right;">{rd.completion_tokens:,} out</span>'
+            f'<span style="font-size:12px;color:#888;min-width:80px;text-align:right;">{elapsed_str}</span>'
+            f'<span style="font-size:13px;font-weight:600;color:#EF9F27;min-width:60px;text-align:right;">{round_credits:.1f}×</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+
+    # Show per-round credit strings from result.details if available
+    if has_per_round_credits:
+        st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+        st.markdown('<p class="section-heading" style="font-size:14px;">CREDITS FROM RESULT DETAILS</p>', unsafe_allow_html=True)
+        for i, rd in enumerate(session.requests):
+            if rd.credits:
+                st.markdown(
+                    f'<div class="card" style="margin-bottom:4px;padding:10px 16px;">'
+                    f'<span style="font-size:12px;color:#888;">Round {i+1}:</span> '
+                    f'<span style="font-size:13px;color:#EF9F27;">{rd.credits}</span></div>',
+                    unsafe_allow_html=True,
+                )
+
+    # Model cost metadata if available
+    if has_cost_meta:
+        st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
+        st.markdown('<p class="section-heading" style="font-size:14px;">MODEL COST METADATA</p>', unsafe_allow_html=True)
+        meta_cols = st.columns(3)
+        with meta_cols[0]:
+            st.markdown(
+                f'<div class="card" style="text-align:center;padding:12px;">'
+                f'<p style="font-size:11px;color:#888;margin:0;">Input Cost</p>'
+                f'<p style="font-size:20px;font-weight:600;color:#e8e6de;margin:4px 0 0 0;">{session.input_cost}</p></div>',
+                unsafe_allow_html=True,
+            )
+        with meta_cols[1]:
+            st.markdown(
+                f'<div class="card" style="text-align:center;padding:12px;">'
+                f'<p style="font-size:11px;color:#888;margin:0;">Output Cost</p>'
+                f'<p style="font-size:20px;font-weight:600;color:#e8e6de;margin:4px 0 0 0;">{session.output_cost}</p></div>',
+                unsafe_allow_html=True,
+            )
+        with meta_cols[2]:
+            st.markdown(
+                f'<div class="card" style="text-align:center;padding:12px;">'
+                f'<p style="font-size:11px;color:#888;margin:0;">Cache Cost</p>'
+                f'<p style="font-size:20px;font-weight:600;color:#e8e6de;margin:4px 0 0 0;">{session.cache_cost}</p></div>',
+                unsafe_allow_html=True,
+            )
+
+    # Explainer note
+    st.markdown(
+        '<div class="card" style="margin-top:16px;padding:14px;">'
+        '<p style="font-size:13px;color:#aaa;line-height:1.6;margin:0;">'
+        '<strong style="color:#e8e6de;">How Copilot credits work:</strong> '
+        'Each premium request consumes credits based on the model\'s multiplier. '
+        f'{session.model_name} uses a <strong>{session.multiplier or "1x"}</strong> multiplier — '
+        f'each of the {num_rounds} rounds in this session uses {mult:.1f} premium credits. '
+        'When <code>result.details</code> contains a credit string (e.g. "Claude Opus 4.6 × 142.9 credits"), '
+        'those values are shown above. Cost metadata (<code>inputCost</code>, <code>outputCost</code>, '
+        '<code>cacheCost</code>) appears when the model provides per-token pricing.</p></div>',
+        unsafe_allow_html=True,
+    )
+
+
 def render_key_rules(session: SessionData):
     st.markdown('<p class="section-heading">KEY RULES TO REMEMBER</p>', unsafe_allow_html=True)
     rules = [

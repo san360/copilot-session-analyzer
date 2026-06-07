@@ -10,6 +10,7 @@ from components import (
     render_token_chart,
     render_output_tokens_explainer,
     render_key_rules,
+    render_cost_summary,
     render_transcript_header,
     render_transcript_timeline,
     render_transcript_turns,
@@ -30,101 +31,143 @@ st.markdown(MAIN_CSS, unsafe_allow_html=True)
 st.markdown(
     '<h1 style="text-align: center; color: #e8e6de; font-size: 28px; margin-bottom: 4px;">'
     '🔍 Copilot Session Analyser</h1>'
-    '<p style="text-align: center; color: #888; font-size: 14px; margin-bottom: 32px;">'
-    'Upload a GitHub Copilot chat session JSONL file (chatSession or transcript format).</p>',
+    '<p style="text-align: center; color: #888; font-size: 14px; margin-bottom: 24px;">'
+    'Upload GitHub Copilot session files — chatSession and/or transcript JSONL.</p>',
     unsafe_allow_html=True,
 )
 
-uploaded_file = st.file_uploader(
-    "Upload a Copilot session JSONL file",
-    type=["jsonl", "json"],
-    help="Supports both chatSession (CRDT) and transcript (event stream) JSONL formats.",
-)
-
-if uploaded_file is not None:
-    if st.session_state.get("last_file") != uploaded_file.name:
-        with st.spinner("Parsing session file..."):
-            try:
-                file_bytes = uploaded_file.read()
-                session_data = parse_session(file_bytes)
-                st.session_state["session_data"] = session_data
-                st.session_state["last_file"] = uploaded_file.name
-            except Exception as e:
-                st.error(f"Failed to parse file: {e}")
-                st.stop()
-
-    session_data = st.session_state.get("session_data")
-    if session_data is None:
-        st.error("No session data available.")
-        st.stop()
-
-    # Show detected format badge
-    fmt_label = "chatSession (CRDT)" if session_data.file_format == "chatSession" else "transcript (event stream)"
-    fmt_color = "#7F77DD" if session_data.file_format == "chatSession" else "#378ADD"
-    st.markdown(
-        f'<p style="text-align:center;margin-bottom:16px;">'
-        f'<span style="display:inline-block;background:{fmt_color};color:#fff;font-size:12px;font-weight:600;'
-        f'padding:4px 14px;border-radius:12px;">Detected: {fmt_label}</span></p>',
-        unsafe_allow_html=True,
+# ─── Two file uploaders side by side ───
+up_col1, up_col2 = st.columns(2)
+with up_col1:
+    cs_file = st.file_uploader(
+        "📁 Chat Session file (chatSessions/*.jsonl)",
+        type=["jsonl", "json"],
+        key="cs_upload",
+        help="CRDT patch log from workspaceStorage/<id>/chatSessions/",
+    )
+with up_col2:
+    tr_file = st.file_uploader(
+        "📁 Transcript file (transcripts/*.jsonl)",
+        type=["jsonl", "json"],
+        key="tr_upload",
+        help="Event stream from workspaceStorage/<id>/GitHub.copilot-chat/transcripts/",
     )
 
-    if session_data.file_format == "chatSession":
-        # ─── ChatSession tabs ───
-        tab_overview, tab_timeline, tab_rounds, tab_tokens, tab_info = st.tabs([
-            "📊 Overview", "📜 Timeline", "🔄 Rounds", "📈 Tokens", "ℹ️ Format Info"
-        ])
 
-        with tab_overview:
-            render_session_header(session_data)
-            render_key_rules(session_data)
+def _parse_and_cache(uploaded, cache_key):
+    """Parse an uploaded file and store in session_state."""
+    if uploaded is None:
+        st.session_state.pop(cache_key, None)
+        st.session_state.pop(cache_key + "_name", None)
+        return None
+    if st.session_state.get(cache_key + "_name") != uploaded.name:
+        with st.spinner("Parsing..."):
+            try:
+                data = parse_session(uploaded.read())
+                st.session_state[cache_key] = data
+                st.session_state[cache_key + "_name"] = uploaded.name
+            except Exception as e:
+                st.error(f"Failed to parse {uploaded.name}: {e}")
+                return None
+    return st.session_state.get(cache_key)
 
-        with tab_timeline:
-            render_timeline(session_data)
 
-        with tab_rounds:
-            render_round_cards(session_data)
+cs_data = _parse_and_cache(cs_file, "cs_data")
+tr_data = _parse_and_cache(tr_file, "tr_data")
 
-        with tab_tokens:
-            render_token_chart(session_data)
-            render_output_tokens_explainer(session_data)
+has_cs = cs_data is not None
+has_tr = tr_data is not None
 
-        with tab_info:
-            render_format_info()
-
-    elif session_data.file_format == "transcript":
-        # ─── Transcript tabs ───
-        tab_overview, tab_timeline, tab_turns, tab_tools, tab_messages, tab_info = st.tabs([
-            "📊 Overview", "📜 Timeline", "🔄 Turns", "🔧 Tools", "💬 Messages", "ℹ️ Format Info"
-        ])
-
-        with tab_overview:
-            render_transcript_header(session_data)
-
-        with tab_timeline:
-            render_transcript_timeline(session_data)
-
-        with tab_turns:
-            render_transcript_turns(session_data)
-
-        with tab_tools:
-            render_transcript_tool_chart(session_data)
-
-        with tab_messages:
-            render_transcript_messages(session_data)
-
-        with tab_info:
-            render_format_info()
-
-    else:
-        st.error("Unknown file format. Expected chatSession (kind:0/1/2) or transcript (type-based events).")
-
-else:
+if not has_cs and not has_tr:
     st.markdown(
         '<div style="text-align: center; padding: 60px 20px; color: #888;">'
         '<p style="font-size: 48px; margin-bottom: 12px;">📂</p>'
-        '<p style="font-size: 16px;">Drop a <code>.jsonl</code> session file above to get started</p>'
-        '<p style="font-size: 13px; margin-top: 12px;">Supports both <strong>chatSession</strong> (CRDT patch log) '
-        'and <strong>transcript</strong> (event stream) formats</p>'
+        '<p style="font-size: 16px;">Upload one or both <code>.jsonl</code> files above to get started</p>'
+        '<p style="font-size: 13px; margin-top: 12px; max-width: 600px; margin-left: auto; margin-right: auto;">'
+        'The <strong>Chat Session</strong> file (CRDT patch log) has token counts, streaming progress, and cost data.<br>'
+        'The <strong>Transcript</strong> file (event stream) has tool execution details, user messages, and reasoning text.<br>'
+        'Upload both for the same session ID to see the complete picture.</p>'
         '</div>',
         unsafe_allow_html=True,
     )
+    st.stop()
+
+# ─── Build top-level tab list based on what was uploaded ───
+top_tab_names = []
+if has_cs:
+    top_tab_names.append("📊 Chat Session")
+if has_tr:
+    top_tab_names.append("📜 Transcript")
+top_tab_names.append("ℹ️ Format Info")
+
+top_tabs = st.tabs(top_tab_names)
+tab_idx = 0
+
+# ─── Chat Session top-level tab ───
+if has_cs:
+    with top_tabs[tab_idx]:
+        fmt_label = "chatSession (CRDT)" if cs_data.file_format == "chatSession" else cs_data.file_format
+        st.markdown(
+            f'<p style="margin-bottom:8px;">'
+            f'<span style="display:inline-block;background:#7F77DD;color:#fff;font-size:11px;font-weight:600;'
+            f'padding:3px 12px;border-radius:10px;">{fmt_label}</span></p>',
+            unsafe_allow_html=True,
+        )
+
+        sub_overview, sub_timeline, sub_rounds, sub_tokens, sub_cost = st.tabs([
+            "Overview", "Timeline", "Rounds", "Tokens", "Cost & Credits"
+        ])
+
+        with sub_overview:
+            render_session_header(cs_data)
+            render_key_rules(cs_data)
+
+        with sub_timeline:
+            render_timeline(cs_data)
+
+        with sub_rounds:
+            render_round_cards(cs_data)
+
+        with sub_tokens:
+            render_token_chart(cs_data)
+            render_output_tokens_explainer(cs_data)
+
+        with sub_cost:
+            render_cost_summary(cs_data)
+
+    tab_idx += 1
+
+# ─── Transcript top-level tab ───
+if has_tr:
+    with top_tabs[tab_idx]:
+        st.markdown(
+            '<p style="margin-bottom:8px;">'
+            '<span style="display:inline-block;background:#378ADD;color:#fff;font-size:11px;font-weight:600;'
+            'padding:3px 12px;border-radius:10px;">transcript (event stream)</span></p>',
+            unsafe_allow_html=True,
+        )
+
+        sub_overview, sub_timeline, sub_turns, sub_tools, sub_messages = st.tabs([
+            "Overview", "Timeline", "Turns", "Tools", "Messages"
+        ])
+
+        with sub_overview:
+            render_transcript_header(tr_data)
+
+        with sub_timeline:
+            render_transcript_timeline(tr_data)
+
+        with sub_turns:
+            render_transcript_turns(tr_data)
+
+        with sub_tools:
+            render_transcript_tool_chart(tr_data)
+
+        with sub_messages:
+            render_transcript_messages(tr_data)
+
+    tab_idx += 1
+
+# ─── Format Info tab (always last) ───
+with top_tabs[tab_idx]:
+    render_format_info()
